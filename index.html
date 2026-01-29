@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>听写实验室</title>
+    <title>外语刻意练习 - 极速版</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .active-line { background-color: #f0f7ff; border-left: 5px solid #4f46e5; transition: all 0.2s; }
@@ -11,12 +11,17 @@
         .blur-text:hover, .show-all .blur-text { filter: blur(0); }
     </style>
 </head>
-<body class="bg-slate-100 min-h-screen p-4">
+<body class="bg-slate-100 min-h-screen p-4 pb-20">
     <div class="max-w-2xl mx-auto bg-white shadow-xl rounded-2xl p-6 mt-4">
-        <h1 class="text-2xl font-bold text-center text-indigo-600 mb-6">💡 外语刻意练习</h1>
+        <h1 class="text-2xl font-bold text-center text-indigo-600 mb-6">🎧 外语刻意练习</h1>
+
+        <div class="mb-6 p-4 border-2 border-dashed border-indigo-200 rounded-xl bg-indigo-50">
+            <p class="text-sm font-bold text-indigo-700 mb-2">第一步：选择本地音频</p>
+            <input type="file" id="audioUpload" accept="audio/*" class="text-sm text-slate-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-600 file:text-white hover:file:bg-indigo-700">
+        </div>
 
         <div class="bg-slate-50 p-4 rounded-xl mb-6 shadow-sm border">
-            <audio id="audioPlayer" class="w-full" controls src="audio.mp3"></audio>
+            <audio id="audioPlayer" class="w-full" controls></audio>
             
             <div class="flex flex-wrap gap-2 justify-center mt-4">
                 <button onclick="changeSentence(-1)" class="bg-slate-200 px-4 py-2 rounded-lg hover:bg-slate-300">⏮ 上一句</button>
@@ -24,47 +29,75 @@
                 <button onclick="changeSentence(1)" class="bg-slate-200 px-4 py-2 rounded-lg hover:bg-slate-300">下一句 ⏭</button>
             </div>
             
-            <div class="flex justify-center gap-6 mt-4 border-t pt-4">
+            <div class="flex justify-center gap-6 mt-4 border-t pt-4 text-sm">
                 <label class="flex items-center cursor-pointer">
-                    <input type="checkbox" id="loopCheck" checked class="w-5 h-5 text-indigo-600">
+                    <input type="checkbox" id="loopCheck" checked class="w-4 h-4 text-indigo-600">
                     <span class="ml-2 font-medium">单句循环</span>
                 </label>
-                <button onclick="document.body.classList.toggle('show-all')" class="text-sm text-indigo-500 underline">显示/隐藏原文</button>
+                <button onclick="document.body.classList.toggle('show-all')" class="text-indigo-500 underline">显示/隐藏原文</button>
+                <button onclick="clearAll()" class="text-red-400">清空当前课件</button>
             </div>
         </div>
 
-        <div id="textContainer" class="space-y-2 max-h-[500px] overflow-y-auto pr-2">
-            </div>
+        <div id="textContainer" class="space-y-2 max-h-[500px] overflow-y-auto pr-2 mb-8"></div>
+
+        <div class="border-t pt-6">
+            <p class="text-sm font-bold text-gray-700 mb-2">第二步：粘贴对齐数据 (从 AI Studio 获取)</p>
+            <textarea id="jsonInput" class="w-full h-24 p-2 text-xs border rounded bg-gray-50 font-mono" placeholder='[{ "text": "...", "start": 0, "end": 2 }, ...]'></textarea>
+            <button onclick="loadNewData()" class="w-full mt-2 bg-indigo-500 text-white py-2 rounded-lg font-bold hover:bg-indigo-600 transition">加载新课文</button>
+        </div>
     </div>
 
     <script>
-        // 【数据区】确保这里格式正确
-        const data = [
-            { "text": "The English oak is one of Britain's most iconic trees.", "start": 5.0, "end": 8.5 },
-            { "text": "Broad and majestic, this tree supports more species than any other native tree in the UK.", "start": 9.0, "end": 17.8 },
-            { "text": "For centuries it has stood watching the landscapes change and our societies evolve.", "start": 18.8, "end": 23.3 },
-            { "text": "The question is, can a tree remember, learn and adapt to new environments within its lifetime?", "start": 24.0, "end": 29.3 },
-            { "text": "Does wisdom lie within its boughs?", "start": 30.0, "end": 32.5 },
-            { "text": "Trees provide a physical record of their life experiences in their growth rings.", "start": 33.0, "end": 38.3 },
-            { "text": "Dendrochronologists take samples from a tree trunk and are able to see whether a tree has been through a forest fire.", "start": 39.0, "end": 49.3 }
-        ];
-
+        let data = JSON.parse(localStorage.getItem('studyData')) || [];
         let index = 0;
         const audio = document.getElementById('audioPlayer');
         const container = document.getElementById('textContainer');
         const loopMode = document.getElementById('loopCheck');
 
-        // 渲染函数：把文字放到页面上
+        // 音频上传处理
+        document.getElementById('audioUpload').addEventListener('change', function(e) {
+            const file = e.target.files[0];
+            if (file) {
+                const url = URL.createObjectURL(file);
+                audio.src = url;
+                audio.play();
+            }
+        });
+
         function renderText() {
             container.innerHTML = data.map((item, i) => `
                 <div id="line-${i}" onclick="goTo(${i})" class="p-4 rounded-lg border border-transparent cursor-pointer transition-all">
                     <p class="blur-text text-lg text-gray-700">${item.text}</p>
                 </div>
             `).join('');
-            highlight();
+            if(data.length > 0) highlight();
         }
 
-        // 跳转功能
+        function loadNewData() {
+            const input = document.getElementById('jsonInput').value;
+            try {
+                // 允许直接粘贴带有 const data = 的代码或纯 JSON
+                const cleanJson = input.replace(/const data = /, '').replace(/;$/, '').trim();
+                const parsed = JSON.parse(cleanJson);
+                data = parsed;
+                localStorage.setItem('studyData', JSON.stringify(data));
+                index = 0;
+                renderText();
+                alert("课文加载成功！数据已保存在浏览器中。");
+            } catch (e) {
+                alert("格式有误，请确保是正确的 JSON 数组。");
+            }
+        }
+
+        function clearAll() {
+            if(confirm("确定清空当前保存的内容吗？")) {
+                localStorage.removeItem('studyData');
+                data = [];
+                renderText();
+            }
+        }
+
         window.goTo = function(i) {
             if (i < 0 || i >= data.length) return;
             index = i;
@@ -76,7 +109,6 @@
         window.playCurrent = function() { goTo(index); }
         window.changeSentence = function(step) { goTo(index + step); }
 
-        // 高亮当前行
         function highlight() {
             document.querySelectorAll('#textContainer > div').forEach(el => el.classList.remove('active-line'));
             const active = document.getElementById(`line-${index}`);
@@ -86,10 +118,8 @@
             }
         }
 
-        // 核心循环逻辑
         audio.addEventListener('timeupdate', () => {
-            if (loopMode.checked) {
-                // 加 0.3 秒缓冲，防止切太快
+            if (loopMode.checked && data[index]) {
                 if (audio.currentTime >= (data[index].end + 0.3)) {
                     audio.currentTime = data[index].start;
                     audio.play();
@@ -97,9 +127,7 @@
             }
         });
 
-        // 页面启动
         renderText();
     </script>
 </body>
 </html>
-
