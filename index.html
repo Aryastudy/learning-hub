@@ -3,111 +3,102 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>极简听写专家</title>
+    <title>听写实验室</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        /* 选中行的高亮样式 */
-        .active-line { background-color: #eef2ff; border-left: 4px solid #4f46e5; transform: translateX(5px); }
-        /* 盲听模式的模糊样式 */
-        .blur-text { filter: blur(5px); transition: all 0.3s; cursor: help; user-select: none; }
-        .blur-text:hover { filter: blur(0); }
+        .active-line { background-color: #f0f7ff; border-left: 5px solid #4f46e5; transition: all 0.2s; }
+        .blur-text { filter: blur(6px); transition: filter 0.3s; cursor: pointer; user-select: none; }
+        .blur-text:hover, .show-all .blur-text { filter: blur(0); }
     </style>
 </head>
-<body class="bg-gray-100 min-h-screen p-4 flex flex-col items-center">
-    <div class="max-w-3xl w-full bg-white shadow-2xl rounded-3xl p-6 mt-4">
-        <h1 class="text-xl font-bold text-center mb-6 text-indigo-600">🎧 专业听写练习场</h1>
+<body class="bg-slate-100 min-h-screen p-4">
+    <div class="max-w-2xl mx-auto bg-white shadow-xl rounded-2xl p-6 mt-4">
+        <h1 class="text-2xl font-bold text-center text-indigo-600 mb-6">🎧 英语精听工具</h1>
 
-        <div class="sticky top-0 bg-white z-10 pb-4 border-b">
-            <audio id="player" class="w-full mb-4" controls src="audio.mp3"></audio>
+        <div class="bg-slate-50 p-4 rounded-xl mb-6 shadow-sm border">
+            <audio id="audioPlayer" class="w-full" controls src="audio.mp3"></audio>
             
-            <div class="flex flex-wrap gap-2 justify-center">
-                <button onclick="prevStep()" class="px-4 py-2 bg-slate-200 rounded-lg hover:bg-slate-300">⏮ 上一句</button>
-                <button onclick="replayCurrent()" class="px-6 py-2 bg-indigo-600 text-white rounded-lg font-bold hover:bg-indigo-700">🔁 重听本句</button>
-                <button onclick="nextStep()" class="px-4 py-2 bg-slate-200 rounded-lg hover:bg-slate-300">下一句 ⏭</button>
-                <label class="flex items-center ml-4 cursor-pointer">
-                    <input type="checkbox" id="autoRepeat" checked class="w-5 h-5">
+            <div class="flex flex-wrap gap-2 justify-center mt-4">
+                <button onclick="changeSentence(-1)" class="bg-slate-200 px-4 py-2 rounded-lg hover:bg-slate-300">⏮ 上一句</button>
+                <button onclick="playCurrent()" class="bg-indigo-600 text-white px-6 py-2 rounded-lg font-bold hover:bg-indigo-700">🔁 重听本句</button>
+                <button onclick="changeSentence(1)" class="bg-slate-200 px-4 py-2 rounded-lg hover:bg-slate-300">下一句 ⏭</button>
+            </div>
+            
+            <div class="flex justify-center gap-6 mt-4 border-t pt-4">
+                <label class="flex items-center cursor-pointer">
+                    <input type="checkbox" id="loopCheck" checked class="w-5 h-5 text-indigo-600">
                     <span class="ml-2 font-medium">单句循环</span>
                 </label>
+                <button onclick="document.body.classList.toggle('show-all')" class="text-sm text-indigo-500 underline">显示/隐藏原文</button>
             </div>
         </div>
 
-        <div id="displayArea" class="mt-6 space-y-4">
+        <div id="textContainer" class="space-y-2 max-h-[500px] overflow-y-auto pr-2">
             </div>
-
-        <details class="mt-10 border-t pt-4">
-            <summary class="text-xs text-gray-400 cursor-pointer text-center underline">手动更新 JSON 数据 (临时换课用)</summary>
-            <textarea id="jsonInput" class="w-full h-32 mt-2 p-2 text-xs border rounded" placeholder="在此粘贴 AI Studio 的 JSON 数据..."></textarea>
-            <button onclick="updateData()" class="w-full mt-2 bg-black text-white py-2 text-sm rounded hover:bg-gray-800">更新页面内容</button>
-        </details>
     </div>
 
     <script>
-        // ---------------------------------------------------------
-        // 【关键】请确保这里的 data 包含了你从 AI Studio 拿到的内容
-        // ---------------------------------------------------------
-        let data = [
-          { "text": "The English oak is one of Britain's most iconic trees.", "start": 5.0, "end": 8.5 },
-          { "text": "Broad and majestic, this tree supports more species than any other native tree in the UK, from blackbirds, to squirrels to butterflies.", "start": 9.0, "end": 17.8 },
-          { "text": "For centuries it has stood watching the landscapes change and our societies evolve.", "start": 18.8, "end": 23.3 },
-          { "text": "The question is, can a tree remember, learn and adapt to new environments within its lifetime?", "start": 24.0, "end": 29.3 },
-          { "text": "Does wisdom lie within its boughs?", "start": 30.0, "end": 32.5 },
-          { "text": "Trees provide a physical record of their life experiences in their growth rings.", "start": 33.0, "end": 38.3 },
-          { "text": "Dendrochronologists take samples from a tree trunk and are able to see whether a tree has been through a forest fire, periods of drought or a rainy season.", "start": 39.0, "end": 49.3 },
-          { "text": "But these markings are more than just battle scars.", "start": 50.0, "end": 53.0 },
-          { "text": "An organisation called Membra studies a number of UK tree species to see how they 'remember' and respond to environmental stress.", "start": 54.0, "end": 102.3 },
-          { "text": "Their research shows that environmental events do not change the tree's genetic code, but they can change how its genes react, which helps the tree adapt and defend itself against future drought, disease or climate extremes.", "start": 103.0, "end": 115.3 },
-          { "text": "So, trees don't have conscious memories of events like humans do – they remember through biological, structural changes.", "start": 116.0, "end": 123.5 },
-          { "text": "That's a tree's defence in its own lifespan, but can their memories be passed down to future generations?", "start": 124.0, "end": 129.5 },
-          { "text": "Membra's research found that seedlings were more tolerant to drought when their parents had experienced repeated drought.", "start": 130.0, "end": 136.5 },
-          { "text": "And in one of the world's largest climate change experiments, published in Nature Climate Change by Richard Norby and colleagues, they pumped extra CO2 into an oak forest.", "start": 137.0, "end": 147.5 },
-          { "text": "Not only did the trees absorb more CO2, but the offspring of those trees also grew faster and were more resistant to disease, suggesting that tough conditions might make trees' offspring more resilient.", "start": 148.0, "end": 159.5 },
-          { "text": "What does this all mean?", "start": 160.0, "end": 162.2 },
-          { "text": "There has been a wave of tree planting schemes throughout the UK, with aims to improve biodiversity and our defence against climate change.", "start": 163.0, "end": 172.0 },
-          { "text": "Fast-growing and short-lived tree species are often favoured in these schemes to quickly increase tree numbers.", "start": 173.0, "end": 180.3 },
-          { "text": "But trees that live longer, like oaks, which have a greater memory and resilience, could be a better choice.", "start": 181.0, "end": 188.0 }
+        // 【数据区】确保这里格式正确
+        const data = [
+            { "text": "The English oak is one of Britain's most iconic trees.", "start": 5.0, "end": 8.5 },
+            { "text": "Broad and majestic, this tree supports more species than any other native tree in the UK.", "start": 9.0, "end": 17.8 },
+            { "text": "For centuries it has stood watching the landscapes change and our societies evolve.", "start": 18.8, "end": 23.3 },
+            { "text": "The question is, can a tree remember, learn and adapt to new environments within its lifetime?", "start": 24.0, "end": 29.3 },
+            { "text": "Does wisdom lie within its boughs?", "start": 30.0, "end": 32.5 },
+            { "text": "Trees provide a physical record of their life experiences in their growth rings.", "start": 33.0, "end": 38.3 },
+            { "text": "Dendrochronologists take samples from a tree trunk and are able to see whether a tree has been through a forest fire.", "start": 39.0, "end": 49.3 }
         ];
 
-        let currentIndex = 0;
-        const player = document.getElementById('player');
-        const displayArea = document.getElementById('displayArea');
-        const buffer = 0.3; // 补偿时间，防止末尾单词被掐断
+        let index = 0;
+        const audio = document.getElementById('audioPlayer');
+        const container = document.getElementById('textContainer');
+        const loopMode = document.getElementById('loopCheck');
 
-        // 渲染文本到页面的核心函数
-        function render() {
-            displayArea.innerHTML = '';
-            if (data.length === 0) {
-                displayArea.innerHTML = '<div class="text-center text-gray-400">暂无数据，请在下方配置区粘贴 JSON。</div>';
-                return;
+        // 渲染函数：把文字放到页面上
+        function renderText() {
+            container.innerHTML = data.map((item, i) => `
+                <div id="line-${i}" onclick="goTo(${i})" class="p-4 rounded-lg border border-transparent cursor-pointer transition-all">
+                    <p class="blur-text text-lg text-gray-700">${item.text}</p>
+                </div>
+            `).join('');
+            highlight();
+        }
+
+        // 跳转功能
+        window.goTo = function(i) {
+            if (i < 0 || i >= data.length) return;
+            index = i;
+            audio.currentTime = data[index].start;
+            audio.play();
+            highlight();
+        }
+
+        window.playCurrent = function() { goTo(index); }
+        window.changeSentence = function(step) { goTo(index + step); }
+
+        // 高亮当前行
+        function highlight() {
+            document.querySelectorAll('#textContainer > div').forEach(el => el.classList.remove('active-line'));
+            const active = document.getElementById(`line-${index}`);
+            if (active) {
+                active.classList.add('active-line');
+                active.scrollIntoView({ behavior: 'smooth', block: 'center' });
             }
-            data.forEach((item, index) => {
-                const div = document.createElement('div');
-                div.id = `line-${index}`;
-                div.className = "p-4 rounded-xl border transition-all duration-200 mb-2 cursor-pointer relative group border-gray-100";
-                div.innerHTML = `
-                    <div class="blur-text text-lg text-gray-800" id="text-${index}">${item.text}</div>
-                    <div class="text-xs text-gray-400 mt-1 font-mono tracking-widest">SEGMENT ${index + 1}</div>
-                `;
-                div.onclick = () => jumpTo(index);
-                displayArea.appendChild(div);
-            });
-            updateHighlight(); // 初始高亮第一句
         }
 
-        // 跳转并播放
-        function jumpTo(index) {
-            if (index < 0 || index >= data.length) return;
-            currentIndex = index;
-            player.currentTime = data[index].start;
-            player.play();
-            updateHighlight();
-        }
+        // 核心循环逻辑
+        audio.addEventListener('timeupdate', () => {
+            if (loopMode.checked) {
+                // 加 0.3 秒缓冲，防止切太快
+                if (audio.currentTime >= (data[index].end + 0.3)) {
+                    audio.currentTime = data[index].start;
+                    audio.play();
+                }
+            }
+        });
 
-        function replayCurrent() { jumpTo(currentIndex); }
-        function nextStep() { if (currentIndex < data.length - 1) jumpTo(currentIndex + 1); }
-        function prevStep() { if (currentIndex > 0) jumpTo(currentIndex - 1); }
-
-        // 更新高亮显示
-        function updateHighlight() {
-            document.querySelectorAll('#displayArea > div').forEach(el => el.classList.remove('active-line'));
-            const active = document.getElementById(`line-${currentIndex}`);
-            if (
+        // 页面启动
+        renderText();
+    </script>
+</body>
+</html>
